@@ -1,78 +1,105 @@
 const express = require('express');
 const fs = require('fs');
+const path = require('path');
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // for form POST
+app.use(express.json()); // for JSON API
 
-// Load candidates data
+// Load candidates from file
 let candidates = JSON.parse(fs.readFileSync('candidates.json', 'utf8'));
 
-// Home Route – Improved for browser
+// Home Route
 app.get('/', (req, res) => {
+  res.send(`<h1>Welcome to the Fictitious Political Candidates Server</h1>
+  <p><a href="/add-candidate">Add a Candidate</a> | <a href="/candidates">View All Candidates</a></p>`);
+});
+
+// Task 1: GET form
+app.get('/add-candidate', (req, res) => {
   res.send(`
-    <h1>Fictitious Political Candidates Server</h1>
-    <p>Welcome! Use the following endpoints to search or filter candidates:</p>
-    <ul>
-      <li><strong>GET</strong> <code>/search?party=Cheese Liberators</code></li>
-      <li><strong>GET</strong> <code>/search?party=Jam Union&platform=Spread</code></li>
-      <li><strong>POST</strong> <code>/filter</code> (with JSON body)</li>
-    </ul>
-    <p>Example POST body:</p>
-    <pre>{
-  "platform": "Pro-Biscuit Legislation",
-  "slogan": "A Biscuit in Every Hand"
-}</pre>
+    <html>
+      <head>
+        <title>Add New Candidate</title>
+      </head>
+      <body>
+        <h1>Add a New Political Candidate</h1>
+        <form action="/add-candidate" method="POST">
+          <label for="name">Name:</label><br>
+          <input type="text" id="name" name="name" required><br>
+          <label for="party">Party:</label><br>
+          <input type="text" id="party" name="party" required><br>
+          <label for="platform">Platform:</label><br>
+          <input type="text" id="platform" name="platform" required><br>
+          <label for="slogan">Slogan:</label><br>
+          <input type="text" id="slogan" name="slogan" required><br><br>
+          <input type="submit" value="Submit">
+        </form>
+      </body>
+    </html>
   `);
 });
 
-// GET /search with query parameters
-app.get('/search', (req, res) => {
-  const { party, platform } = req.query;
-  let filteredCandidates = candidates;
-
-  if (party) {
-    filteredCandidates = filteredCandidates.filter(c => c.party === party);
-  }
-
-  if (platform) {
-    filteredCandidates = filteredCandidates.filter(c =>
-      c.platform.includes(platform)
-    );
-  }
-
-  if (filteredCandidates.length > 0) {
-    res.json(filteredCandidates);
-  } else {
-    res.status(404).json({ message: 'No candidates found' });
-  }
+// Task 2: POST form submission
+app.post('/add-candidate', (req, res) => {
+  const { name, party, platform, slogan } = req.body;
+  const newCandidate = {
+    id: candidates.length + 1,
+    name,
+    party,
+    platform,
+    slogan
+  };
+  candidates.push(newCandidate);
+  fs.writeFileSync('candidates.json', JSON.stringify(candidates, null, 2));
+  res.redirect('/candidates');
 });
 
-// POST /filter with JSON body
-app.post('/filter', (req, res) => {
-  const { platform, slogan } = req.body;
-  let filteredCandidates = candidates;
+// Task 3: Display candidates
+app.get('/candidates', (req, res) => {
+  let candidatesHtml = candidates.map(candidate => `
+    <div class="candidate-box">
+      <h2>${candidate.name}</h2>
+      <p><strong>Party:</strong> ${candidate.party}</p>
+      <p><strong>Platform:</strong> ${candidate.platform}</p>
+      <p><strong>Slogan:</strong> ${candidate.slogan}</p>
+    </div>
+  `).join('');
 
-  if (platform) {
-    filteredCandidates = filteredCandidates.filter(c =>
-      c.platform.includes(platform)
-    );
-  }
-
-  if (slogan) {
-    filteredCandidates = filteredCandidates.filter(c =>
-      c.slogan.includes(slogan)
-    );
-  }
-
-  if (filteredCandidates.length > 0) {
-    res.json(filteredCandidates);
-  } else {
-    res.status(404).json({ message: 'No candidates found' });
-  }
+  res.send(`
+    <html>
+      <head>
+        <title>Candidate List</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+          }
+          .candidate-box {
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin: 10px 0;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+          }
+          .candidate-box h2 {
+            margin: 0 0 10px;
+            font-size: 24px;
+          }
+        </style>
+      </head>
+      <body>
+        <h1>All Political Candidates</h1>
+        ${candidatesHtml}
+        <p><a href="/add-candidate">Add Another Candidate</a></p>
+      </body>
+    </html>
+  `);
 });
 
-// Start the server
 app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`Server running at http://localhost:${PORT}`);
 });
